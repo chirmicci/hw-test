@@ -65,6 +65,9 @@ func TestCache(t *testing.T) {
 		wasInCache = c.Set("ddd", 400)
 		require.False(t, wasInCache)
 
+		_, isexist := c.Get("aaa")
+		require.False(t, isexist)
+
 		val, isexist := c.Get("bbb")
 		require.True(t, isexist)
 		require.Equal(t, 200, val)
