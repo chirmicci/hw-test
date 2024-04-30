@@ -2,8 +2,11 @@ package hw09structvalidator
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type UserRole string
@@ -34,6 +37,11 @@ type (
 		Code int    `validate:"in:200,404,500"`
 		Body string `json:"omitempty"`
 	}
+
+	ResponseErr struct {
+		Code int    `validate:"int:200,404,500"`
+		Body string `json:"omitempty"`
+	}
 )
 
 func TestValidate(t *testing.T) {
@@ -42,10 +50,93 @@ func TestValidate(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			// Place your code here.
+			in: User{
+				ID:     "123456789012345678901234567890123456",
+				Name:   "John",
+				Age:    25,
+				Email:  "test@test.com",
+				Role:   "admin",
+				Phones: []string{"12345678901"},
+			},
+			expectedErr: nil,
 		},
-		// ...
-		// Place your code here.
+		{
+			in: User{
+				ID:     "12345678901234567890123456789012345",
+				Name:   "John",
+				Age:    15,
+				Email:  "!123@test.com",
+				Role:   "admin2",
+				Phones: []string{"123456789012"},
+			},
+			expectedErr: ValidationErrors{
+				{Field: "ID", Err: ErrStringNotLen},
+				{Field: "Age", Err: ErrIntUnderMin},
+				{Field: "Email", Err: ErrStringNotRegexp},
+				{Field: "Role", Err: ErrStringNotInSet},
+				{Field: "Phones", Err: ErrStringNotLen},
+			},
+		},
+		{
+			in: User{
+				ID:     "123456789012345678901234567890123456",
+				Name:   "John",
+				Age:    90,
+				Email:  "test@test.com",
+				Role:   "admin",
+				Phones: []string{"12345678901"},
+			},
+			expectedErr: ValidationErrors{
+				{Field: "Age", Err: ErrIntOverMax},
+			},
+		},
+		{
+			in: App{
+				Version: "1.0.0",
+			},
+			expectedErr: nil,
+		},
+		{
+			in: App{
+				Version: "1",
+			},
+			expectedErr: ValidationErrors{
+				{Field: "Version", Err: ErrStringNotLen},
+			},
+		},
+		{
+			in: Token{
+				Header:    []byte("1234567890"),
+				Payload:   []byte("12345678901234567890"),
+				Signature: []byte("12345678901234567890123456789012"),
+			},
+			expectedErr: nil,
+		},
+		{
+			in: Response{
+				Code: 200,
+				Body: "OK",
+			},
+			expectedErr: nil,
+		},
+		{
+			in: Response{
+				Code: 201,
+				Body: "Created",
+			},
+			expectedErr: ValidationErrors{
+				{Field: "Code", Err: ErrIntNotInSet},
+			},
+		},
+		{
+			in: ResponseErr{
+				Code: 200,
+				Body: "OK",
+			},
+			expectedErr: ValidationErrors{
+				{Field: "Code", Err: ErrTagInvalid},
+			},
+		},
 	}
 
 	for i, tt := range tests {
@@ -53,7 +144,27 @@ func TestValidate(t *testing.T) {
 			tt := tt
 			t.Parallel()
 
-			// Place your code here.
+			errs := Validate(tt.in)
+			if tt.expectedErr == nil {
+				require.NoError(t, errs)
+			} else {
+				var valErrs ValidationErrors
+				if errors.As(errs, &valErrs) {
+					var expectedErrs ValidationErrors
+					require.ErrorAs(t, tt.expectedErr, &expectedErrs)
+					require.Equal(t, len(expectedErrs), len(valErrs),
+						fmt.Sprintf(
+							"expected err: %s\ngot err: %s\n",
+							expectedErrs, valErrs,
+						),
+					)
+					for i, err := range valErrs {
+						require.ErrorIs(t, err, expectedErrs[i])
+					}
+				} else {
+					require.ErrorIs(t, errs, tt.expectedErr)
+				}
+			}
 			_ = tt
 		})
 	}
