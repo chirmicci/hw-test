@@ -62,4 +62,15 @@ func TestTelnetClient(t *testing.T) {
 
 		wg.Wait()
 	})
+
+	t.Run("unknown host", func(t *testing.T) {
+		in := &bytes.Buffer{}
+		out := &bytes.Buffer{}
+
+		timeout, err := time.ParseDuration("5s")
+		require.NoError(t, err)
+
+		client := NewTelnetClient("unknownhost", timeout, io.NopCloser(in), out)
+		require.Error(t, client.Connect())
+	})
 }
